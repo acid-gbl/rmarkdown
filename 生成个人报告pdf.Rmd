@@ -1,0 +1,247 @@
+---
+title: 在职人员工作打扰和身心健康研究-个人报告
+documentclass: ctexart
+geometry: "left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm"
+output:
+  rticles::ctex:
+    number_sections: yes
+    toc: yes
+header-includes:
+   - \usepackage{setspace}
+   - \doublespacing
+---
+```{r, echo=FALSE}
+report_dat<-read.csv(file="plot data.csv")
+outcomes <- c("工作打扰","工作日积极情绪","工作日消极情绪","工作满意度","工作日替代性攻击倾向","工作倦怠感","工作日身心健康","正念特质")
+colnames(report_dat)[5:19] <- c(outcomes,paste0("基线",outcomes[-8]))
+
+#i=unique(report_dat$ID)[1]
+
+subdata<-report_dat[report_dat$ID==i|report_dat$ID=="总体水平",]
+i_dat<-report_dat[report_dat$ID==i,]
+subdata<-subdata[subdata$time %in% i_dat$time,]
+```
+
+\newpage
+\vspace{12pt}
+
+# 总体情况
+&emsp;&emsp;恭喜您完成所有30个工作日的问卷填写！针对您的作答情况，我们生成了本报告，希望可以帮助您更好地了解自己在工作日中的工作打扰以及身心健康的各方面情况。在以下日期，您坚持完成了每日问卷的作答：
+```{r, echo=FALSE, comment="", warning=FALSE, message=FALSE}
+library(plyr)
+library(showtext)
+subdata$time<-gsub("2021-","",subdata$time)
+subdata$time<-gsub("0(.)","\\1",subdata$time)
+sundays<-unique(report_dat[weekdays(as.Date(report_dat[,"time"]))=="星期日","time"])
+sundays<-gsub("2021-","",sundays)
+sundays<-gsub("0(.)","\\1",sundays)
+com_days<-unique(subdata[(subdata$ID==i)&(!is.na(subdata[,"工作打扰"])),]$time)
+com_mat<-as.data.frame(t(as.data.frame(lapply(com_days,strsplit,"[-]"))))
+com_mat<-sapply(com_mat,as.numeric)
+months<-sort(unique(com_mat[,1]))
+new_mat<-data.frame()
+for(m in 1:length(months)){
+  new_mat[m,1]<-months[m]
+  days<-sort(com_mat[com_mat[,1]==months[m],2])
+  new_mat[m,2]<-paste(days, collapse=", ")
+}
+colnames(new_mat)<-c("月份","日期")
+library(knitr)
+kable(new_mat,align='c')
+```
+
+&emsp;&emsp;您和被试总体在研究期间各变量的平均情况如下：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE, message=F}
+im_dat<-colMeans(i_dat[,outcomes],na.rm = T)
+m_dat<-colMeans(report_dat[,outcomes],na.rm = T)
+m_dat<-as.data.frame(rbind(im_dat,m_dat))
+rownames(m_dat)<-NULL
+m_dat$sub<-c(i,"总体水平")
+colnames(m_dat)<-c(gsub("工作日","",outcomes),"作答主体")
+m_dat<-m_dat[,c("作答主体",gsub("工作日","",outcomes))]
+m_dat[,-1]<-round(m_dat[,-1],3)
+# kable(m_dat,align='c')
+
+library(ggplot2)
+library(reshape)
+melt_dat<-melt(m_dat,id.vars = c("作答主体"))
+ggplot(data = melt_dat, aes(x = variable, y = value, fill = get("作答主体")))+
+    geom_bar(stat = "identity", position = "dodge")+
+    xlab("\n研究变量") + ylab("量表均分")+
+    scale_alpha_manual(values = c(1,0.25))+
+  guides(fill=guide_legend(title="作答主体"))+
+  scale_fill_manual(values=c("#4682B4","grey"))+
+  geom_text(aes(x = variable, label=value, y=value+0.1), position=position_dodge(0.9), vjust=0)
+```
+
+&emsp;&emsp;其中，
+**工作打扰**包括来自工作、家庭和其他方面的事情打断的情况。
+情绪指个体的主观感受及随之产生的一系列行为的倾向性，可分为**积极情绪**（例如愉悦）和**消极情绪**（例如愤怒）。
+**工作满意度**是员工评价与工作相关的各要素后在心理层面所产生的态度。
+**替代性攻击**指个体将报复行为发泄到一个相对无辜的人身上。
+**倦怠感**是个体由于长期的工作压力得不到有效缓解而产生的一系列消极心理和生理症状。
+**身心健康**不仅指身体上无恙，还包括心理上的健康。
+**正念特质**指此时此刻个体觉察和注意当下发生的刺激的程度。
+
+```{r, echo=FALSE}
+# 对于每日数据，先写好后面循环画图的函数
+plot_trend<-function(v){
+  var <- outcomes[v]
+  # base <- unique(i_dat[,paste0("基线",var)])
+  pic1<-ggplot(subdata, mapping = aes(x=time, y=get(var), colour=ID,
+                                linetype=ID, group = ID))+
+    xlab("\n日期") + ylab(var)+
+    scale_colour_manual(values=c("#4682B4","darkgreen"))+
+    # geom_hline(yintercept=base,linetype=4,colour="darkblue")+
+    geom_vline(xintercept=sundays,linetype=4,colour="darkgrey")+
+    scale_linetype_manual(values=c(1,2))+
+    geom_point(size=0.1)+
+    geom_line(data=subdata[!is.na(subdata[,var]),],size=1.2)+
+    guides(colour=guide_legend(title=NULL),linetype=guide_legend(title=NULL))+
+    theme(axis.text.x=element_text(angle=30,hjust=1,size=rel(0.5)))
+  print(pic1)
+}
+plot_bar<-function(v){
+  var <- outcomes[v]
+  t <- as.data.frame(table(i_dat[,var]), stringsAsFactors = F)
+  t$Var1 <- as.factor(round(as.numeric(t$Var1),3))
+  pic2<-ggplot(data = t, mapping = aes(x = Var1, y = Freq))+
+    #ggtitle(paste0(var,"量表得分整体分布图"))+
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.margin=unit(c(1,4.4,1,1.4),'lines'))+ #上，右，下，左
+    xlab(paste0("\n",var)) + ylab("频数")+
+    geom_bar(stat = "identity",fill="#4682B4")
+  print(pic2)
+}
+```
+
+<!---\vspace{12pt}-->
+
+&emsp;&emsp;为了更详细地呈现您在研究期间各研究变量的整体波动情况，本报告还将分别呈现您各方面变量的波动情况和分布情况。
+\newpage
+
+# `r v = 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# `r v = v + 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# `r v = v + 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# `r v = v + 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# `r v = v + 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# `r v = v + 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# `r v = v + 1; outcomes[v]`情况
+&emsp;&emsp;您在研究期间的`r outcomes[v]`的波动情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_trend(v)
+```
+*注：蓝色实线表示您本人的情况，绿色虚线表示被试总体的平均情况。灰色点划线表示当天为星期日。图中缺失值已通过直线插补后连接。*
+  
+&emsp;&emsp;您在研究期间的`r outcomes[v]`量表得分的分布情况如下图所示：
+
+```{r, echo=FALSE, fig.width=9.5,fig.height=4.5, warning=FALSE, fig.showtext=TRUE}
+plot_bar(v)
+```
+*注：横轴表示该变量量表的均分，纵轴表示该变量均分在研究期间的出现次数。*
+
+\newpage
+
+# 致谢
+以上为您个人报告的全部内容。再次感谢您对本研究的支持！
+
+![](Thank-you.jpg) <!---[]表示不需要图片标题-->
+
